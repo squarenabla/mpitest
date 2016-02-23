@@ -1,5 +1,5 @@
-CC = clang
-CXX = clang++
+CC = gcc
+CXX = g++
 
 SRC_CPP = $(wildcard *.cpp)
 SRC_C = $(wildcard *.c)
