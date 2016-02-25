@@ -1,5 +1,5 @@
 CC = mpicc
-CXX = mpixx
+CXX = mpicxx
 
 SRC_CPP = $(wildcard *.cpp)
 SRC_C = $(wildcard *.c)
@@ -11,7 +11,7 @@ CXXFLAGS =  -march=native -mtune=native -std=c++11 -Ofast
 #LIBS = `pkg-config --cflags --libs mpich`
 
 %.o: %.cpp
-	$(CC)  $(INCPATH)  $^ -o $@ -c
+	$(CXX)  $(INCPATH)  $^ -o $@ -c
 
 all: $(OBJ)
-	$(CC)  $(OBJ) -o main
+	$(CXX) $(CXXFLAGS)  $(OBJ) -o main
