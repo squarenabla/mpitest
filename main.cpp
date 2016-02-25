@@ -145,8 +145,8 @@ bool doMasterJob(std::istream &input){
 	//Transposing matrix B to ease future copmutations
 	transpose(matrixB, matrixSize);
 
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	int world_size;
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
 	double *dataA = matrixA.data();
 	double *dataB = matrixB.data();
@@ -173,15 +173,15 @@ bool doMasterJob(std::istream &input){
 	packData(dataB, dataPackage, matrixSize + 1, (int)MPI_JOBLOADED);
 	broadCastData(dataPackage, matrixSize + 1, MPI_DOUBLE, MPI_MASTERRANK, MPI_COMM_WORLD);
 
-    unsigned int resultRecieved = 0;
+	unsigned int resultRecieved = 0;
 
-    //Resceiving results
-    while(resultRecieved < matrixSize*matrixSize){
-    	MPI_Recv(dataPackage, 2, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    	resultMatrix[(unsigned int)dataPackage[0]] = dataPackage[1];
-    	resultRecieved++;
-    }
-    showMatrix(resultMatrix, matrixSize);
+	//Resceiving results
+	while(resultRecieved < matrixSize*matrixSize){
+		MPI_Recv(dataPackage, 2, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		resultMatrix[(unsigned int)dataPackage[0]] = dataPackage[1];
+		resultRecieved++;
+	}
+	showMatrix(resultMatrix, matrixSize);
 
 	return true;
 }
@@ -229,41 +229,41 @@ bool doSlaveJob(const int &slaveRank){
 }
 
 int main(int argc, char** argv) {
-    // Initialize the MPI environment
-    MPI_Init(&argc, &argv);
+	// Initialize the MPI environment
+	MPI_Init(&argc, &argv);
 
-    // Get the number of processes
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	// Get the number of processes
+	int world_size;
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    // Get the rank of the process
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+	// Get the rank of the process
+	int world_rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
-    // Get the name of the processor
-    char processor_name[MPI_MAX_PROCESSOR_NAME];
-    int name_len;
-    MPI_Get_processor_name(processor_name, &name_len);
+	// Get the name of the processor
+	char processor_name[MPI_MAX_PROCESSOR_NAME];
+	int name_len;
+	MPI_Get_processor_name(processor_name, &name_len);
 
-    if(argc != 2){
-    	MPI_Finalize();
-    	return 0;
-    }
+	if(argc != 2){
+		MPI_Finalize();
+		return 0;
+	}
 
-    std::ifstream input(argv[1]);
+	std::ifstream input(argv[1]);
 
-    if(world_rank == MPI_MASTERRANK){
-    	doMasterJob(input);
-    }
-    else{
-    	doSlaveJob(world_rank);
-    }
+	if(world_rank == MPI_MASTERRANK){
+		doMasterJob(input);
+	}
+	else{
+		doSlaveJob(world_rank);
+	}
 
-    // Print off a bye world message
-    printf("Job is done by processor %s, rank %d"
-            " out of %d processors\n",
-            processor_name, world_rank, world_size);
+	// Print off a bye world message
+	printf("Job is done by processor %s, rank %d"
+	        " out of %d processors\n",
+	        processor_name, world_rank, world_size);
 
-    // Finalize the MPI environment.
-    MPI_Finalize();
+	// Finalize the MPI environment.
+	MPI_Finalize();
 }
