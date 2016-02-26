@@ -1,0 +1,24 @@
+
+if [ $# -ne 3 ]
+then
+  	echo "Usage: exec1proc <matrixsize> <plotfile> <number of tests>"
+else
+	rm -f $2
+	for((i=2; i<=20; i++))
+	do
+		buffer=0
+
+		for((j=0; j<$3; j++))
+		do
+			result=`mpiexec -np $i ./main $1`
+			#echo "Result $result"
+			buffer=`expr $buffer + $result`
+		done
+
+		buffer=`expr $buffer / $3`
+
+		echo "Mean time for $i: $buffer ms"
+
+		echo "$i	$buffer" >> $2
+	done
+fi

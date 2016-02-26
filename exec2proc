@@ -1,0 +1,23 @@
+if [ $# -ne 4 ]
+then
+  	echo "Usage: exec2proc <matrix size> <machines file> <plotfile> <number of tests>"
+else
+	rm -f $3
+	for((i=2; i<=20; i++))
+	do
+		buffer=0
+
+		for((j=0; j<$4; j++))
+		do
+			result=`mpiexec -np $i -f $2 ./main $1`
+			#echo "Result $result"
+			buffer=`expr $buffer + $result`
+		done
+
+		buffer=`expr $buffer / $4`
+
+		echo "Mean time for $i: $buffer ms"
+
+		echo "$i	$buffer" >> $3
+	done
+fi

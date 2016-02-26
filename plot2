@@ -1,0 +1,4 @@
+set xlabel "Processes" 
+set ylabel "Time, ms"
+
+plot 	"small2proc" using 1:2 title "small" with lines , "mid2proc" using 1:2 title "middle" with lines, "big2proc" using 1:2 title "big" with lines

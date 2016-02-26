@@ -3,6 +3,8 @@
 
 #include <mpi.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h> 
 
 #include <iostream>
 #include <fstream>
@@ -36,7 +38,7 @@ void showMatrix(const vector<T> &matrix, const unsigned int &size){
 		for(unsigned int j=0; j<size; ++j){
 			unsigned int index = i*size+j;
 			if(index<matrix.size()){
-				cout << matrix[index]<<" ";
+				cout << matrix[index] << " ";
 			}
 		}
 		cout << endl;
@@ -50,6 +52,12 @@ void showData(T* data, const unsigned int &dataSize){
 		cout<<data[i]<<" ";
 	}
 	cout<<endl;
+	return;
+}
+
+void showTime(const clock_t &t){
+	double ms = 1000*((double)t)/CLOCKS_PER_SEC;
+	cout << (unsigned int)ms << endl;
 	return;
 }
 
@@ -67,6 +75,15 @@ bool readMatrix(std::istream &input, vector<double> &matrix, const int &size){
 		}
 	}
 	return true;
+}
+
+template<typename T>
+void generateMatrix(vector<T> &matrix, const int &size){
+	for(int i = 0; i < size; ++i){
+		for(int j = 0; j < size; ++j){
+			matrix.push_back(T(1));
+		}
+	}
 }
 
 void broadCastData(void* data, int count, MPI_Datatype datatype, int root, MPI_Comm communicator) {
@@ -125,22 +142,26 @@ bool multiplyVector(const vector<T> &data, T &result){
 	return true;
 }
 
-bool doMasterJob(std::istream &input){
+bool doMasterJob(unsigned int &matrixSize){
 	vector<double> matrixA;
 	vector<double> matrixB;
 	vector<double> resultMatrix;
 
-	unsigned int matrixSize;
-	input >> matrixSize;
+	//unsigned int matrixSize;
+	//input >> matrixSize;
 	resultMatrix.resize(matrixSize*matrixSize);
 
 	//Sendign matrix size to slaves 
 	broadCastData(&matrixSize, 1, MPI_UNSIGNED, MPI_MASTERRANK, MPI_COMM_WORLD);
 
 	//Reading matrix A and B
-	if(!readMatrix(input, matrixA, matrixSize) || !readMatrix(input, matrixB, matrixSize)){
-		return false;
-	}	
+	// if(!readMatrix(input, matrixA, matrixSize) || !readMatrix(input, matrixB, matrixSize)){
+	// 	return false;
+	// }	
+
+	//Generating matrixes
+	generateMatrix(matrixA, matrixSize);
+	generateMatrix(matrixB, matrixSize);
 
 	//Transposing matrix B to ease future copmutations
 	transpose(matrixB, matrixSize);
@@ -152,36 +173,44 @@ bool doMasterJob(std::istream &input){
 	double *dataB = matrixB.data();
 	double dataPackage[matrixSize + 1];
 
-	//Sending task to slaves using the following package structure (taskid, data0, data1,...)
-	for(unsigned int i=0; i<matrixSize; ++i){
-		for(unsigned int j=0; j<matrixSize; ++j){
-			//rank of a slave 
-			int source = (i*matrixSize + j) % (world_size - 1) + 1;
+	clock_t t1, t2;
 
-			packData(dataA, dataPackage, matrixSize + 1, (int)(i*matrixSize + j));
-			MPI_Send(dataPackage, matrixSize + 1, MPI_DOUBLE, source, 0 , MPI_COMM_WORLD);
-			packData(dataB, dataPackage, matrixSize + 1, (int)(i*matrixSize + j));
-			MPI_Send(dataPackage, matrixSize + 1, MPI_DOUBLE, source, 0, MPI_COMM_WORLD);
+	t1 = clock();	
+	{
+		//Sending task to slaves using the following package structure (taskid, data0, data1,...)
+		for(unsigned int i=0; i<matrixSize; ++i){
+			for(unsigned int j=0; j<matrixSize; ++j){
+				//rank of a slave 
+				int source = (i*matrixSize + j) % (world_size - 1) + 1;
 
-			dataB += matrixSize;
+				packData(dataA, dataPackage, matrixSize + 1, (int)(i*matrixSize + j));
+				MPI_Send(dataPackage, matrixSize + 1, MPI_DOUBLE, source, 0 , MPI_COMM_WORLD);
+				packData(dataB, dataPackage, matrixSize + 1, (int)(i*matrixSize + j));
+				MPI_Send(dataPackage, matrixSize + 1, MPI_DOUBLE, source, 0, MPI_COMM_WORLD);
+
+				dataB += matrixSize;
+			}
+			dataB = matrixB.data();
+			dataA += matrixSize;
 		}
-		dataB = matrixB.data();
-		dataA += matrixSize;
+
+		//Notifing slaves that the job is destributed 
+		packData(dataB, dataPackage, matrixSize + 1, (int)MPI_JOBLOADED);
+		broadCastData(dataPackage, matrixSize + 1, MPI_DOUBLE, MPI_MASTERRANK, MPI_COMM_WORLD);
+
+		unsigned int resultRecieved = 0;
+
+		//Resceiving results
+		while(resultRecieved < matrixSize*matrixSize){
+			MPI_Recv(dataPackage, 2, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			resultMatrix[(unsigned int)dataPackage[0]] = dataPackage[1];
+			resultRecieved++;
+		}
 	}
+	t2 = clock();
 
-	//Notifing slaves that the job is destributed 
-	packData(dataB, dataPackage, matrixSize + 1, (int)MPI_JOBLOADED);
-	broadCastData(dataPackage, matrixSize + 1, MPI_DOUBLE, MPI_MASTERRANK, MPI_COMM_WORLD);
-
-	unsigned int resultRecieved = 0;
-
-	//Resceiving results
-	while(resultRecieved < matrixSize*matrixSize){
-		MPI_Recv(dataPackage, 2, MPI_DOUBLE, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		resultMatrix[(unsigned int)dataPackage[0]] = dataPackage[1];
-		resultRecieved++;
-	}
-	showMatrix(resultMatrix, matrixSize);
+	//showMatrix(resultMatrix, matrixSize);
+	showTime(t2-t1);
 
 	return true;
 }
@@ -250,19 +279,20 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	std::ifstream input(argv[1]);
+	//std::ifstream input(argv[1]);
+	unsigned int matrixSize = (unsigned int)atoi(argv[1]);
 
 	if(world_rank == MPI_MASTERRANK){
-		doMasterJob(input);
+		doMasterJob(matrixSize);
 	}
 	else{
 		doSlaveJob(world_rank);
 	}
 
 	// Print off a bye world message
-	printf("Job is done by processor %s, rank %d"
-	        " out of %d processors\n",
-	        processor_name, world_rank, world_size);
+	// printf("Job is done by processor %s, rank %d"
+	//         " out of %d processors\n",
+	//         processor_name, world_rank, world_size);
 
 	// Finalize the MPI environment.
 	MPI_Finalize();
